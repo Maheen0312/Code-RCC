@@ -6,7 +6,6 @@ import Terminal from "../components/Terminal";
 import VideoChat from "../components/VideoChat";
 import Chatbot from "../components/Chatbot";
 import UserList from '../components/UserList';
-import CodeRunner from'../components/CodeRunner';
 import { useSocket } from '../socketContext';
 import ACTIONS from '../action';
 import toast from 'react-hot-toast';
@@ -19,7 +18,6 @@ const Room = () => {
   const navigate = useNavigate();
   const { roomId } = useParams();
   const location = useLocation();
-  const [userId] = useState(uuidV4());
   
   // Get query parameters from URL
   const queryParams = new URLSearchParams(location.search);
@@ -547,13 +545,16 @@ const Room = () => {
             </select>
           </div>
           
-          {userData.roomname && (
-            <div className="ml-4 text-lg font-semibold text-blue-400 flex items-center">
-              <span className="bg-blue-500 bg-opacity-20 px-3 py-1 rounded-md">
-                {userData.roomname}
-              </span>
-            </div>
-          )}
+          {stateData.roomname && (
+                <div className="ml-4 text-lg font-semibold text-blue-400 flex items-center">
+                  <span className="bg-blue-500 bg-opacity-20 px-3 py-1 rounded-md">
+                    {typeof stateData.roomname === 'string'
+                      ? stateData.roomname
+                      : JSON.stringify(stateData.roomname)}
+                  </span>
+               </div>
+            )}
+
         </div>
 
         <div className="flex items-center space-x-3">
@@ -593,10 +594,7 @@ const Room = () => {
             <div className="flex-grow top-0 overflow-y-auto p-2">
               <UserList clients={clients} />
             </div>
-            <div className="flex-grow overflow-hidden">
-                <Chatbot darkMode={darkMode} />
-                
-              </div>
+           
             {/* Collapse sidebar button */}
             <button 
               className="absolute left-[16.66%] top-1/2 w-6 h-10 bg-gray-700 rounded-r-md flex items-center justify-center"
@@ -652,7 +650,11 @@ const Room = () => {
                 <div className="flex-grow p-2 overflow-y-auto">
                   <VideoChat darkMode={darkMode} />
                 </div>
-              )}
+              )} 
+              <div className="flex-grow overflow-hidden">
+                <Chatbot darkMode={darkMode} />
+                
+              </div>
             </div>
             {/* Collapse chat button */}
             <button 
