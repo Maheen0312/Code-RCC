@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: Code RCC
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    nodeVersion: 20.11.1
+
