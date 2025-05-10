@@ -244,7 +244,6 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Chatbot proxy server running on port ${PORT}`));
 // === Health Check ===
 app.get("/health", (req, res) => {
   res.status(200).json({
