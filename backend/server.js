@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
-const fetch = require("node-fetch"); 
+const fetch = require("node-fetch");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
 const { spawn } = require("child_process");
