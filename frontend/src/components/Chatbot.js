@@ -1,3 +1,4 @@
+
 /**
  * AI Code Assistant Chatbot
  * This script creates a floating chatbot interface that connects to AI services via API
@@ -5,19 +6,19 @@
  */
 // Configuration
 const CONFIG = {
-    apiKey: process.env.OPENAI_API, // Replace with your actual API key
-    apiEndpoint: "https://code-rcc-backend.onrender.com/api/chat", // Example using OpenAI API
+    apiEndpoint: "/api/chat", // Use relative URL to avoid CORS issues
     model: "gpt-3.5-turbo", // The AI model to use
     systemPrompt: "You are an AI assistant specialized in helping with coding problems and generating code snippets. Keep responses clear and concise with well-formatted code examples.",
     maxRetries: 3,
-    retryDelay: 1000,
+    retryDelay: 2000, // Increased to give server more time to recover
     temperature: 0.7,
     bubbleSize: "60px",
     primaryColor: "#4a6cf7",
     secondaryColor: "#6c757d",
     lightColor: "#f8f9fa",
     darkColor: "#343a40",
-    maxChatHistory: 50 // Maximum number of messages to store in chat history
+    maxChatHistory: 20, // Reduced to limit context size
+    useLocalFallback: true // Enable fallback mode if API fails
 };
 
 // Chat history storage
@@ -98,9 +99,14 @@ function createChatbotElements() {
             <div class="avatar" style="width: 30px; height: 30px; background-color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: ${CONFIG.primaryColor}; font-weight: bold; font-size: 14px;">AI</div>
             <h3 style="font-weight: 600; font-size: 16px;">Code Assistant</h3>
         </div>
-        <button class="close-chat" style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">
-            <i class="fas fa-times"></i>
-        </button>
+        <div style="display: flex; align-items: center;">
+            <button class="clear-chat" style="background: none; border: none; color: white; cursor: pointer; margin-right: 10px;">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <button class="close-chat" style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
     `;
 
     // Create chat messages container
@@ -177,6 +183,19 @@ function createChatbotElements() {
     `;
     sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
 
+    // Add status indicator
+    const statusIndicator = document.createElement('div');
+    statusIndicator.className = 'status-indicator';
+    statusIndicator.style.cssText = `
+        padding: 5px 10px;
+        text-align: center;
+        font-size: 12px;
+        color: #6c757d;
+        border-top: 1px solid #eee;
+        display: none;
+    `;
+    statusIndicator.textContent = 'Connected to AI service';
+
     // Assemble the chat input
     chatInput.appendChild(textarea);
     chatInput.appendChild(sendButton);
@@ -184,6 +203,7 @@ function createChatbotElements() {
     // Assemble the chat container
     chatContainer.appendChild(chatHeader);
     chatContainer.appendChild(chatMessages);
+    chatContainer.appendChild(statusIndicator);
     chatContainer.appendChild(chatInput);
 
     // Add all elements to the document
@@ -224,7 +244,8 @@ function createChatbotElements() {
         chatMessages,
         textarea,
         sendButton,
-        welcomeMessage
+        welcomeMessage,
+        statusIndicator
     };
 }
 
@@ -282,6 +303,11 @@ function setupEventListeners() {
         setTimeout(() => {
             elements.chatContainer.style.display = 'none';
         }, 300);
+    });
+    
+    // Clear chat history
+    document.querySelector('.clear-chat').addEventListener('click', () => {
+        clearChatHistory();
     });
     
     // Send message on button click
@@ -572,6 +598,24 @@ function getCurrentTime() {
 }
 
 /**
+ * Set API status indicator
+ * @param {string} status - Status message
+ * @param {boolean} isError - Whether this is an error status
+ */
+function setStatusIndicator(status, isError = false) {
+    if (elements.statusIndicator) {
+        elements.statusIndicator.style.display = 'block';
+        elements.statusIndicator.textContent = status;
+        elements.statusIndicator.style.color = isError ? '#dc3545' : '#28a745';
+        
+        // Hide after 5 seconds
+        setTimeout(() => {
+            elements.statusIndicator.style.display = 'none';
+        }, 5000);
+    }
+}
+
+/**
  * Process a message using the AI API
  * @param {string} message - The user message to process
  */
@@ -585,90 +629,91 @@ async function processWithAI(message) {
     ];
     
     // Add up to the last 10 messages from chat history (to stay within context limits)
-    const recentHistory = chatHistory.slice(-20);
+    const recentHistory = chatHistory.slice(-10);
     messages.push(...recentHistory);
     
-    // Make the API request
-    try {
-        const response = await fetchWithRetry(CONFIG.apiEndpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${CONFIG.apiKey}`
-            },
-            body: JSON.stringify({
-                model: CONFIG.model,
-                messages: messages,
-                temperature: CONFIG.temperature
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`API Error: ${response.status}`);
+    let apiSuccess = false;
+    let retryCount = 0;
+    let aiResponse = '';
+    
+    // Try API with retries
+    while (!apiSuccess && retryCount <= CONFIG.maxRetries) {
+        try {
+            // Add jitter to retry delay to prevent thundering herd problem
+            if (retryCount > 0) {
+                const jitter = Math.floor(Math.random() * 1000);
+                await new Promise(resolve => setTimeout(resolve, CONFIG.retryDelay + jitter));
+            }
+            
+            const response = await fetch(CONFIG.apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: CONFIG.model,
+                    messages: messages,
+                    temperature: CONFIG.temperature
+                })
+            });
+            
+            if (!response.ok) {
+                const statusCode = response.status;
+                
+                // Special handling for rate limiting
+                if (statusCode === 429) {
+                    setStatusIndicator('Rate limited. Retrying...', true);
+                    throw new Error('Rate limit exceeded');
+                } else {
+                    throw new Error(`API Error: ${statusCode}`);
+                }
+            }
+            
+            const data = await response.json();
+            aiResponse = data.choices[0].message.content.trim();
+            apiSuccess = true;
+            
+            // Show status if retried successfully
+            if (retryCount > 0) {
+                setStatusIndicator('Connected to AI service', false);
+            }
+            
+        } catch (error) {
+            console.warn(`API attempt ${retryCount + 1} failed:`, error);
+            retryCount++;
+            
+            // If last retry, use fallback
+            if (retryCount > CONFIG.maxRetries) {
+                setStatusIndicator('Using offline mode', true);
+                
+                if (CONFIG.useLocalFallback) {
+                    aiResponse = fallbackMessageHandler(message);
+                } else {
+                    aiResponse = "Sorry, I'm having trouble connecting to the AI service. Please try again later.";
+                }
+            }
         }
-        
-        const data = await response.json();
-        const aiResponse = data.choices[0].message.content.trim();
-        
-        // Remove typing indicator
-        removeTypingIndicator();
-        
-        // Add response to chat
-        addBotMessage(aiResponse);
-        
-        // Save to chat history
-        chatHistory.push({
-            role: 'assistant',
-            content: aiResponse
-        });
-        
-        // Ensure chat history doesn't exceed max length
-        if (chatHistory.length > CONFIG.maxChatHistory) {
-            // Keep the first message (usually welcome) and the most recent ones
-            chatHistory = [chatHistory[0], ...chatHistory.slice(-(CONFIG.maxChatHistory - 1))];
-        }
-        
-        saveChatHistory();
-        
-    } catch (error) {
-        console.error('Error processing with AI:', error);
-        
-        // Remove typing indicator
-        removeTypingIndicator();
-        
-        // Add error message
-        const errorMessage = "Sorry, I encountered an error while processing your request. Please try again later.";
-        addBotMessage(errorMessage);
-        
-        // Add to chat history
-        chatHistory.push({
-            role: 'assistant',
-            content: errorMessage
-        });
-        saveChatHistory();
     }
-}
-
-/**
- * Wrapper for fetch with retry logic
- * @param {string} url - The API endpoint URL
- * @param {Object} options - Fetch options
- * @returns {Promise} - Fetch response promise
- */
-async function fetchWithRetry(url, options, retries = CONFIG.maxRetries) {
-    try {
-        return await fetch(url, options);
-    } catch (err) {
-        if (retries === 0) {
-            throw err;
-        }
-        
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, CONFIG.retryDelay));
-        
-        // Retry with one fewer retry remaining
-        return fetchWithRetry(url, options, retries - 1);
+    
+    // Remove typing indicator
+    removeTypingIndicator();
+    
+    // Add response to chat
+    addBotMessage(aiResponse);
+    
+    // Save to chat history
+    chatHistory.push({
+        role: 'assistant',
+        content: aiResponse
+    });
+    
+    // Ensure chat history doesn't exceed max length
+    if (chatHistory.length > CONFIG.maxChatHistory) {
+        // Keep the first message (usually welcome) and the most recent ones
+        chatHistory = [chatHistory[0], ...chatHistory.slice(-(CONFIG.maxChatHistory - 1))];
     }
+    
+    saveChatHistory();
 }
 
 /**
@@ -728,6 +773,20 @@ function clearChatHistory() {
     
     // Show welcome message again
     elements.welcomeMessage.style.display = 'block';
+    
+    // Add initial message after a short delay
+    setTimeout(() => {
+        const initialMessage = "I've cleared our conversation history. How else can I help you with your coding questions?";
+        addBotMessage(initialMessage);
+        elements.welcomeMessage.style.display = 'none';
+        
+        // Add to chat history
+        chatHistory.push({
+            role: 'assistant',
+            content: initialMessage
+        });
+        saveChatHistory();
+    }, 500);
 }
 
 /**
@@ -763,6 +822,7 @@ function fallbackMessageHandler(message) {
  * Initialize the chatbot when the DOM is fully loaded
  */
 document.addEventListener('DOMContentLoaded', initChatbot);
+
 
 // Optional: Expose some functions to the global scope for debugging or manual control
 window.aiChatbot = {
