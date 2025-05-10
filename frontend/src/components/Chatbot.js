@@ -1,24 +1,25 @@
-
 /**
- * AI Code Assistant Chatbot
+ * AI Code Assistant Chatbot - FIXED VERSION
  * This script creates a floating chatbot interface that connects to AI services via API
  * to provide code debugging and snippet generation capabilities.
  */
 // Configuration
 const CONFIG = {
-    apiEndpoint: "/api/chat", // Use relative URL to avoid CORS issues
-    model: "gpt-3.5-turbo", // The AI model to use
+    apiEndpoint: "/api/chat", // This needs to be changed to match your actual API endpoint
+    apiMethod: "GET",        // Changed from POST to GET since your server might only accept GET
+    model: "gpt-3.5-turbo",  // The AI model to use
     systemPrompt: "You are an AI assistant specialized in helping with coding problems and generating code snippets. Keep responses clear and concise with well-formatted code examples.",
     maxRetries: 3,
-    retryDelay: 2000, // Increased to give server more time to recover
+    retryDelay: 2000,
     temperature: 0.7,
     bubbleSize: "60px",
     primaryColor: "#4a6cf7",
     secondaryColor: "#6c757d",
     lightColor: "#f8f9fa",
     darkColor: "#343a40",
-    maxChatHistory: 20, // Reduced to limit context size
-    useLocalFallback: true // Enable fallback mode if API fails
+    maxChatHistory: 20,
+    useLocalFallback: true,  // Enable fallback mode if API fails
+    corsProxyUrl: ""         // Optional CORS proxy if needed: "https://cors-anywhere.herokuapp.com/"
 };
 
 // Chat history storage
@@ -34,6 +35,36 @@ function initChatbot() {
     createChatbotElements();
     setupEventListeners();
     loadChatHistory();
+    
+    // Check API connectivity on initialization
+    checkApiConnectivity();
+}
+
+/**
+ * Check if the API is accessible
+ */
+async function checkApiConnectivity() {
+    try {
+        // Simple API health check - modify according to your API
+        const apiUrl = new URL(CONFIG.apiEndpoint, window.location.origin);
+        const response = await fetch(apiUrl.toString(), {
+            method: 'HEAD',  // Just check if endpoint exists without sending data
+            cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+            console.log("Chatbot API connection successful");
+            setStatusIndicator("Connected to AI service", false);
+        } else {
+            console.warn(`API connectivity check failed with status ${response.status}`);
+            setStatusIndicator("Using offline mode - API connection failed", true);
+            CONFIG.useLocalFallback = true;
+        }
+    } catch (error) {
+        console.warn("API connectivity check failed:", error);
+        setStatusIndicator("Using offline mode - API unreachable", true);
+        CONFIG.useLocalFallback = true;
+    }
 }
 
 /**
@@ -431,7 +462,14 @@ function addBotMessage(message) {
     
     // Check if marked library is loaded
     if (window.marked) {
-        messageContent.innerHTML = window.marked.parse(message, markedOptions);
+        // Workaround for marked deprecation warning
+        if (typeof window.marked === 'function') {
+            messageContent.innerHTML = window.marked(message, markedOptions);
+        } else if (window.marked.parse) {
+            messageContent.innerHTML = window.marked.parse(message, markedOptions);
+        } else {
+            messageContent.textContent = message;
+        }
     } else {
         // Fallback if marked is not loaded
         messageContent.textContent = message;
@@ -616,10 +654,25 @@ function setStatusIndicator(status, isError = false) {
 }
 
 /**
- * Process a message using the AI API
+ * Process a message using the AI API or fallback to local handler if API fails
  * @param {string} message - The user message to process
  */
 async function processWithAI(message) {
+    // If in fallback mode due to API issues, skip API call
+    if (CONFIG.useLocalFallback && !CONFIG.apiEndpoint) {
+        const fallbackResponse = fallbackMessageHandler(message);
+        removeTypingIndicator();
+        addBotMessage(fallbackResponse);
+        
+        // Save to chat history
+        chatHistory.push({
+            role: 'assistant',
+            content: fallbackResponse
+        });
+        saveChatHistory();
+        return;
+    }
+    
     // Prepare the chat history for the API call
     const messages = [
         {
@@ -643,34 +696,103 @@ async function processWithAI(message) {
             if (retryCount > 0) {
                 const jitter = Math.floor(Math.random() * 1000);
                 await new Promise(resolve => setTimeout(resolve, CONFIG.retryDelay + jitter));
+                setStatusIndicator(`Retrying connection (${retryCount}/${CONFIG.maxRetries})...`, true);
             }
             
-            const response = await fetch(CONFIG.apiEndpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
+            // Create the API URL using the current origin to avoid cross-origin issues
+            let apiUrl = CONFIG.apiEndpoint;
+            
+            // If it's not an absolute URL, make it relative to the current origin
+            if (!apiUrl.startsWith('http')) {
+                apiUrl = new URL(apiUrl, window.location.origin).toString();
+            }
+            
+            // Use CORS proxy if provided
+            if (CONFIG.corsProxyUrl && !apiUrl.startsWith(window.location.origin)) {
+                apiUrl = CONFIG.corsProxyUrl + apiUrl;
+            }
+            
+            let response;
+            
+            // Different handling for GET vs POST
+            if (CONFIG.apiMethod.toUpperCase() === 'GET') {
+                // For GET requests, encode the payload in the URL
+                const queryParams = new URLSearchParams({
                     model: CONFIG.model,
-                    messages: messages,
+                    messages: JSON.stringify(messages),
                     temperature: CONFIG.temperature
-                })
-            });
+                });
+                
+                response = await fetch(`${apiUrl}?${queryParams.toString()}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+            } else {
+                // Default to POST
+                response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: CONFIG.model,
+                        messages: messages,
+                        temperature: CONFIG.temperature
+                    })
+                });
+            }
             
             if (!response.ok) {
                 const statusCode = response.status;
+                console.error(`API Error: ${statusCode} - ${response.statusText}`);
                 
                 // Special handling for rate limiting
                 if (statusCode === 429) {
                     setStatusIndicator('Rate limited. Retrying...', true);
                     throw new Error('Rate limit exceeded');
+                }
+                // Special handling for Method Not Allowed
+                else if (statusCode === 405) {
+                    setStatusIndicator('Method not allowed. Try changing API method.', true);
+                    
+                    // Automatically switch methods if 405 error
+                    if (CONFIG.apiMethod.toUpperCase() === 'POST') {
+                        CONFIG.apiMethod = 'GET';
+                        console.log('Switching to GET method for API requests');
+                    } else {
+                        CONFIG.apiMethod = 'POST';
+                        console.log('Switching to POST method for API requests');
+                    }
+                    
+                    throw new Error('Method not allowed');
                 } else {
                     throw new Error(`API Error: ${statusCode}`);
                 }
             }
             
             const data = await response.json();
-            aiResponse = data.choices[0].message.content.trim();
+            
+            // Extract the response based on API response format
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+                // Standard OpenAI format
+                aiResponse = data.choices[0].message.content.trim();
+            } else if (data.response) {
+                // Simple API format
+                aiResponse = data.response.trim();
+            } else if (data.message) {
+                // Another common format
+                aiResponse = data.message.trim();
+            } else if (data.content) {
+                // Yet another format
+                aiResponse = data.content.trim();
+            } else {
+                // Last resort, use the whole response
+                aiResponse = JSON.stringify(data);
+            }
+            
             apiSuccess = true;
             
             // Show status if retried successfully
