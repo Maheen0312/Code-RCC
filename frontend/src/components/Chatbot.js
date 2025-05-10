@@ -6,7 +6,7 @@
 // Configuration
 const CONFIG = {
     apiEndpoint: "/api/chat", // This needs to be changed to match your actual API endpoint
-    apiMethod: "GET",        // Changed from POST to GET since your server might only accept GET
+    apiMethod: "POST",        // Changed from POST to GET since your server might only accept GET
     model: "gpt-3.5-turbo",  // The AI model to use
     systemPrompt: "You are an AI assistant specialized in helping with coding problems and generating code snippets. Keep responses clear and concise with well-formatted code examples.",
     maxRetries: 3,
@@ -699,7 +699,7 @@ async function processWithAI(message) {
                 setStatusIndicator(`Retrying connection (${retryCount}/${CONFIG.maxRetries})...`, true);
             }
             
-            // Create the API URL using the current origin to avoid cross-origin issues
+            // Create the API URL using the current origin
             let apiUrl = CONFIG.apiEndpoint;
             
             // If it's not an absolute URL, make it relative to the current origin
@@ -707,43 +707,28 @@ async function processWithAI(message) {
                 apiUrl = new URL(apiUrl, window.location.origin).toString();
             }
             
-            // Use CORS proxy if provided
+            // Use CORS proxy if provided and needed
             if (CONFIG.corsProxyUrl && !apiUrl.startsWith(window.location.origin)) {
                 apiUrl = CONFIG.corsProxyUrl + apiUrl;
             }
             
             let response;
             
-            // Different handling for GET vs POST
-            if (CONFIG.apiMethod.toUpperCase() === 'GET') {
-                // For GET requests, encode the payload in the URL
-                const queryParams = new URLSearchParams({
-                    model: CONFIG.model,
-                    messages: JSON.stringify(messages),
-                    temperature: CONFIG.temperature
-                });
+            // Force using POST as the server only accepts POST requests for the AI API
+            const requestData = {
+                model: CONFIG.model,
+                messages: messages,
+                temperature: CONFIG.temperature
+            };
                 
-                response = await fetch(`${apiUrl}?${queryParams.toString()}`, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-            } else {
-                // Default to POST
-                response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: CONFIG.model,
-                        messages: messages,
-                        temperature: CONFIG.temperature
-                    })
-                });
-            }
+            response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
             
             if (!response.ok) {
                 const statusCode = response.status;
@@ -753,21 +738,6 @@ async function processWithAI(message) {
                 if (statusCode === 429) {
                     setStatusIndicator('Rate limited. Retrying...', true);
                     throw new Error('Rate limit exceeded');
-                }
-                // Special handling for Method Not Allowed
-                else if (statusCode === 405) {
-                    setStatusIndicator('Method not allowed. Try changing API method.', true);
-                    
-                    // Automatically switch methods if 405 error
-                    if (CONFIG.apiMethod.toUpperCase() === 'POST') {
-                        CONFIG.apiMethod = 'GET';
-                        console.log('Switching to GET method for API requests');
-                    } else {
-                        CONFIG.apiMethod = 'POST';
-                        console.log('Switching to POST method for API requests');
-                    }
-                    
-                    throw new Error('Method not allowed');
                 } else {
                     throw new Error(`API Error: ${statusCode}`);
                 }
@@ -837,7 +807,6 @@ async function processWithAI(message) {
     
     saveChatHistory();
 }
-
 /**
  * Save chat history to localStorage
  */
