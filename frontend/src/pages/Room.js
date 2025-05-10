@@ -341,6 +341,7 @@ const Room = () => {
     };
   }, [socket, isRoomValid, roomId]);
 
+  // Toast manager
   const [toastMessages, setToasts] = useState([]);
   const showToast = (message, type = "info") => {
     const id = Date.now();
@@ -438,6 +439,70 @@ const Room = () => {
   
     window.open(url, '_blank');
   };
+
+  // UI Components to split the rendering
+  const FileMenu = () => (
+    <>
+      <li className={`px-4 py-2 ${theme.dropdownHover} cursor-pointer flex items-center`} onClick={() => fileInputRef.current.click()}>
+        <span className="mr-2">📂</span> Open File
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} cursor-pointer flex items-center`} onClick={() => handleMenuAction("save")}>
+        <span className="mr-2">💾</span> Save File
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} cursor-pointer flex items-center`} onClick={() => handleMenuAction("settings")}>
+        <span className="mr-2">⚙️</span> Settings
+      </li>
+      <li className="border-t border-gray-600 my-1"></li>
+      <li className={`px-4 py-2 hover:bg-red-500 hover:text-white cursor-pointer flex items-center`} onClick={leaveRoom}>
+        <span className="mr-2">🚪</span> Leave Room
+      </li>
+    </>
+  );
+
+  const EditMenu = () => (
+    <>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("copy")}>
+        <span className="mr-2">📋</span> Copy <span className="ml-auto opacity-60 text-xs">Ctrl+C</span>
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("paste")}>
+        <span className="mr-2">📄</span> Paste <span className="ml-auto opacity-60 text-xs">Ctrl+V</span>
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("undo")}>
+        <span className="mr-2">↩️</span> Undo <span className="ml-auto opacity-60 text-xs">Ctrl+Z</span>
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("redo")}>
+        <span className="mr-2">↪️</span> Redo <span className="ml-auto opacity-60 text-xs">Ctrl+Y</span>
+      </li>
+      <li className="border-t border-gray-600 my-1"></li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("find")}>
+        <span className="mr-2">🔍</span> Find <span className="ml-auto opacity-60 text-xs">Ctrl+F</span>
+      </li>
+    </>
+  );
+
+  const ViewMenu = () => (
+    <>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={toggleTerminal}>
+        <span className="mr-2">💻</span> Toggle Terminal <span className="ml-auto opacity-60 text-xs">Ctrl+`</span>
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("zoomin")}>
+        <span className="mr-2">🔍</span> Zoom In <span className="ml-auto opacity-60 text-xs">Ctrl++</span>
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("zoomout")}>
+        <span className="mr-2">🔍</span> Zoom Out <span className="ml-auto opacity-60 text-xs">Ctrl+-</span>
+      </li>
+      <li className="border-t border-gray-600 my-1"></li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("toggleTheme")}>
+        <span className="mr-2">{darkMode ? '☀️' : '🌙'}</span> Toggle Theme <span className="ml-auto opacity-60 text-xs">Ctrl+D</span>
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => setSidebarCollapsed(prev => !prev)}>
+        <span className="mr-2">🔄</span> Toggle Left Sidebar
+      </li>
+      <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => setChatCollapsed(prev => !prev)}>
+        <span className="mr-2">🔄</span> Toggle Right Sidebar
+      </li>
+    </>
+  );
         
   return (
     <div className={`flex flex-col h-screen w-full ${theme.bg} ${theme.text} font-sans transition-colors duration-300`}>
@@ -448,9 +513,9 @@ const Room = () => {
         <div className="flex items-center space-x-2">
           <div className="flex space-x-1">
             {[
-              { name: "File", icon: <FaFileAlt className="mr-1" /> },
-              { name: "Edit", icon: <FaEdit className="mr-1" /> },
-              { name: "View", icon: <FaEye className="mr-1" /> }
+              { name: "File", icon: <FaFileAlt className="mr-1" />, content: <FileMenu /> },
+              { name: "Edit", icon: <FaEdit className="mr-1" />, content: <EditMenu /> },
+              { name: "View", icon: <FaEye className="mr-1" />, content: <ViewMenu /> }
             ].map((menu) => (
               <div key={menu.name} className="relative dropdown">
                 <button
@@ -462,66 +527,7 @@ const Room = () => {
                 {activeMenu === menu.name && (
                   <div className={`absolute left-0 mt-1 w-56 ${theme.dropdownBg} border ${theme.border} rounded-lg shadow-xl z-50 animate-fadeIn`}>
                     <ul className="text-sm py-1">
-                      {menu.name === "File" && (
-                        <>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} cursor-pointer flex items-center`} onClick={() => fileInputRef.current.click()}>
-                            <span className="mr-2">📂</span> Open File
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} cursor-pointer flex items-center`} onClick={() => handleMenuAction("save")}>
-                            <span className="mr-2">💾</span> Save File
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} cursor-pointer flex items-center`} onClick={() => handleMenuAction("settings")}>
-                            <span className="mr-2">⚙️</span> Settings
-                          </li>
-                          <li className="border-t border-gray-600 my-1"></li>
-                          <li className={`px-4 py-2 hover:bg-red-500 hover:text-white cursor-pointer flex items-center`} onClick={leaveRoom}>
-                            <span className="mr-2">🚪</span> Leave Room
-                          </li>
-                        </>
-                      )}
-                      {menu.name === "Edit" && (
-                        <>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("copy")}>
-                            <span className="mr-2">📋</span> Copy <span className="ml-auto opacity-60 text-xs">Ctrl+C</span>
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("paste")}>
-                            <span className="mr-2">📄</span> Paste <span className="ml-auto opacity-60 text-xs">Ctrl+V</span>
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("undo")}>
-                            <span className="mr-2">↩️</span> Undo <span className="ml-auto opacity-60 text-xs">Ctrl+Z</span>
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("redo")}>
-                            <span className="mr-2">↪️</span> Redo <span className="ml-auto opacity-60 text-xs">Ctrl+Y</span>
-                          </li>
-                          <li className="border-t border-gray-600 my-1"></li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("find")}>
-                            <span className="mr-2">🔍</span> Find <span className="ml-auto opacity-60 text-xs">Ctrl+F</span>
-                          </li>
-                        </>
-                      )}
-                      {menu.name === "View" && (
-                        <>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={toggleTerminal}>
-                            <span className="mr-2">💻</span> Toggle Terminal <span className="ml-auto opacity-60 text-xs">Ctrl+`</span>
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("zoomin")}>
-                            <span className="mr-2">🔍</span> Zoom In <span className="ml-auto opacity-60 text-xs">Ctrl++</span>
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("zoomout")}>
-                            <span className="mr-2">🔍</span> Zoom Out <span className="ml-auto opacity-60 text-xs">Ctrl+-</span>
-                          </li>
-                          <li className="border-t border-gray-600 my-1"></li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => handleMenuAction("toggleTheme")}>
-                            <span className="mr-2">{darkMode ? '☀️' : '🌙'}</span> Toggle Theme <span className="ml-auto opacity-60 text-xs">Ctrl+D</span>
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => setSidebarCollapsed(prev => !prev)}>
-                            <span className="mr-2">🔄</span> Toggle Left Sidebar
-                          </li>
-                          <li className={`px-4 py-2 ${theme.dropdownHover} flex items-center`} onClick={() => setChatCollapsed(prev => !prev)}>
-                            <span className="mr-2">🔄</span> Toggle Right Sidebar
-                          </li>
-                        </>
-                      )}
+                      {menu.content}
                     </ul>
                   </div>
                 )}
@@ -588,13 +594,14 @@ const Room = () => {
         {!sidebarCollapsed && (
           <div className={`flex flex-col w-1/6 ${theme.sidebar} border-r ${theme.border} transition-all duration-300`}>
             <div className="p-3 border-b border-gray-700 font-semibold">
+              {/* This section is empty in the original code */}
             </div>
             <div className="flex-grow top-0 overflow-y-auto p-2">
               <UserList clients={clients} />
             </div>
             <div className="flex-grow overflow-hidden">
                 <Chatbot darkMode={darkMode} />
-              </div>
+            </div>
             {/* Collapse sidebar button */}
             <button 
               className="absolute left-[16.66%] top-1/2 w-6 h-10 bg-gray-700 rounded-r-md flex items-center justify-center"
@@ -628,13 +635,14 @@ const Room = () => {
               roomId={roomId}
               onCodeChange={handleCodeChange}
               language={language}
+              code={code}
             />
           </div>
         </div>
 
         {/* Right sidebar - Video chat + text chat */}
         {!chatCollapsed && (
-          <div className={`fixed right-0 top-10px bottom-2px w-57 h-full ${theme.sidebar} border-l ${theme.border} transition-all duration-300 flex flex-col`}>
+          <div className={`w-1/4 ${theme.sidebar} border-l ${theme.border} transition-all duration-300 flex flex-col`}>
             {/* Video chat section */}
             <div className="flex flex-col border-b border-gray-700 overflow-hidden">
               <div className={`p-3 border-b ${theme.border} flex justify-between items-center`}>
@@ -658,7 +666,7 @@ const Room = () => {
               onClick={() => setChatCollapsed(true)}
               title="Collapse chat"
             >
-              
+              <span>→</span>
             </button>
           </div>
         )}
@@ -695,7 +703,6 @@ const Room = () => {
           <Terminal socket={socket} darkMode={darkMode} />
         </div>
       )}
-
       {/* Share popup */}
       {showSharePopup && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
