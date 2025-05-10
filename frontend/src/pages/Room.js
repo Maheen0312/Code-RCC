@@ -551,6 +551,14 @@ const Room = () => {
               <option value="css">CSS</option>
             </select>
           </div>
+          
+          {userData.roomname && (
+            <div className="ml-4 text-lg font-semibold text-blue-400 flex items-center">
+              <span className="bg-blue-500 bg-opacity-20 px-3 py-1 rounded-md">
+                {userData.roomname}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center space-x-3">
@@ -650,11 +658,6 @@ const Room = () => {
           <VideoChat darkMode={darkMode} />
         </div>
       )}
-    </div>
-
-    {/* ✅ Chatbot moved here */}
-    <div className="flex-grow overflow-hidden border-t border-gray-700">
-      <Chatbot darkMode={darkMode} />
     </div>
 
     {/* Collapse chat button */}
