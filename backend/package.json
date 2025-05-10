@@ -37,10 +37,11 @@
     "express-rate-limit": "^6.8.1",
     "helmet": "^7.1.0",
     "hpp": "^0.2.3",
-    "openai": "^4.97.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.13.2",
     "morgan": "^1.10.0",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.97.0",
     "passport": "^0.7.0",
     "passport-github2": "^0.1.12",
     "simple-peer": "^9.11.1",
@@ -62,7 +63,7 @@
     "supertest": "^6.3.4"
   },
   "engines": {
-   "node": ">=20.11.1 <21",
+    "node": ">=20.11.1 <21",
     "npm": ">=9.0.0"
   },
   "jest": {

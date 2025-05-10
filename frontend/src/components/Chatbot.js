@@ -6,7 +6,7 @@
 // Configuration
 const CONFIG = {
     apiKey: process.env.OPENAI_API, // Replace with your actual API key
-    apiEndpoint: "https://api.openai.com/v1/chat/completions", // Example using OpenAI API
+    apiEndpoint: "https://code-rcc-backend.onrender.com/api/chat", // Example using OpenAI API
     model: "gpt-3.5-turbo", // The AI model to use
     systemPrompt: "You are an AI assistant specialized in helping with coding problems and generating code snippets. Keep responses clear and concise with well-formatted code examples.",
     maxRetries: 3,
