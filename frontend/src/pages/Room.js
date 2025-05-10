@@ -599,9 +599,7 @@ const Room = () => {
             <div className="flex-grow top-0 overflow-y-auto p-2">
               <UserList clients={clients} />
             </div>
-            <div className="flex-grow overflow-hidden">
-                <Chatbot darkMode={darkMode} />
-            </div>
+            
             {/* Collapse sidebar button */}
             <button 
               className="absolute left-[16.66%] top-1/2 w-6 h-10 bg-gray-700 rounded-r-md flex items-center justify-center"
@@ -642,34 +640,41 @@ const Room = () => {
 
         {/* Right sidebar - Video chat + text chat */}
         {!chatCollapsed && (
-          <div className={`w-1/4 ${theme.sidebar} border-l ${theme.border} transition-all duration-300 flex flex-col`}>
-            {/* Video chat section */}
-            <div className="flex flex-col border-b border-gray-700 overflow-hidden">
-              <div className={`p-3 border-b ${theme.border} flex justify-between items-center`}>
-                <h3 className="font-semibold">Video Chat</h3>
-                <button 
-                  className={`px-3 py-1 ${showVideoChat ? theme.buttonPrimary : 'bg-gray-600'} rounded-md text-sm`}
-                  onClick={toggleVideoChat}
-                >
-                  {showVideoChat ? 'Hide Video' : 'Show Video'}
-                </button>
-              </div>
-              {showVideoChat && (
-                <div className="flex-grow p-2 overflow-y-auto">
-                  <VideoChat darkMode={darkMode} />
-                </div>
-              )}
-            </div>
-            {/* Collapse chat button */}
-            <button 
-              className="absolute right-[24%] top-1/2 w-6 h-10 bg-gray-700 rounded-l-md flex items-center justify-center"
-              onClick={() => setChatCollapsed(true)}
-              title="Collapse chat"
-            >
-              <span>→</span>
-            </button>
-          </div>
-        )}
+  <div className={`w-1/4 ${theme.sidebar} border-l ${theme.border} transition-all duration-300 flex flex-col`}>
+
+    {/* Video chat section */}
+    <div className="flex flex-col border-b border-gray-700 overflow-hidden">
+      <div className={`p-3 border-b ${theme.border} flex justify-between items-center`}>
+        <h3 className="font-semibold">Video Chat</h3>
+        <button 
+          className={`px-3 py-1 ${showVideoChat ? theme.buttonPrimary : 'bg-gray-600'} rounded-md text-sm`}
+          onClick={toggleVideoChat}
+        >
+          {showVideoChat ? 'Hide Video' : 'Show Video'}
+        </button>
+      </div>
+      {showVideoChat && (
+        <div className="flex-grow p-2 overflow-y-auto">
+          <VideoChat darkMode={darkMode} />
+        </div>
+      )}
+    </div>
+
+    {/* ✅ Chatbot moved here */}
+    <div className="flex-grow overflow-hidden border-t border-gray-700">
+      <Chatbot darkMode={darkMode} />
+    </div>
+
+    {/* Collapse chat button */}
+    <button 
+      className="absolute right-[24%] top-1/2 w-6 h-10 bg-gray-700 rounded-l-md flex items-center justify-center"
+      onClick={() => setChatCollapsed(true)}
+      title="Collapse chat"
+    >
+      <span>→</span>
+    </button>
+  </div>
+)}
         
         {/* Collapsed chat button */}
         {chatCollapsed && (
