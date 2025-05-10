@@ -21,14 +21,9 @@ mongoose.connection.on("error", (err) => console.error("❌ MongoDB connection e
 
 // Remove duplicate cors configuration
 app.use(cors({
-  origin: function (origin, callback) {
-    const allowed = ["http://localhost:3000", process.env.FRONTEND_URL].filter(Boolean);
-    if (!origin || allowed.includes(origin)) callback(null, true);
-    else callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true,
+  origin:process.env.FRONTEND_URL,
   methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 }));
 app.use(express.json());
 
