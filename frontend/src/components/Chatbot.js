@@ -4,7 +4,7 @@
 // Configuration options
 const CONFIG = {
   bubbleSize: 60, // Size of the floating bubble in pixels
-  apiEndpoint: "http://localhost:11434/api/generate", // Default Ollama API endpoint
+  apiEndpoint: "/api/chat", // Use a relative URL for our proxy
   modelName: "llama3", // Default model
   systemPrompt: "You are a helpful AI assistant.", // Default system prompt
   userName: "User", // Default user name
@@ -401,220 +401,184 @@ class FloatingAIBubble {
       this.settingsPanel.style.display = 'none';
     }
   }
-
+  
   toggleSettings() {
-    if (this.settingsPanel.style.display === 'flex') {
-      this.settingsPanel.style.display = 'none';
-    } else {
+    if (this.settingsPanel.style.display === 'none' || this.settingsPanel.style.display === '') {
       this.settingsPanel.style.display = 'flex';
+    } else {
+      this.settingsPanel.style.display = 'none';
     }
   }
-
+  
   saveSettings() {
     this.config.apiEndpoint = this.apiEndpointInput.value;
     this.config.modelName = this.modelNameInput.value;
     this.config.systemPrompt = this.systemPromptInput.value;
     
+    // Close settings panel
     this.settingsPanel.style.display = 'none';
     
-    // Add a system message to indicate settings were updated
+    // Optionally, show a confirmation message
     this.addSystemMessage('Settings updated successfully.');
   }
-
+  
   addSystemMessage(text) {
-    const systemMessage = document.createElement('div');
-    systemMessage.className = 'message system-message';
-    systemMessage.style.padding = '6px 12px';
-    systemMessage.style.borderRadius = '12px';
-    systemMessage.style.backgroundColor = '#f0f9ff';
-    systemMessage.style.fontSize = '12px';
-    systemMessage.style.color = '#4b5563';
-    systemMessage.style.textAlign = 'center';
-    systemMessage.style.margin = '8px auto';
-    systemMessage.style.maxWidth = '90%';
-    systemMessage.textContent = text;
-    
-    this.messagesContainer.appendChild(systemMessage);
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    
-    // System messages disappear after 5 seconds
-    setTimeout(() => {
+   const systemMessage = document.createElement('div');
+  systemMessage.className = 'message system-message';
+  systemMessage.style.padding = '8px 12px';
+  systemMessage.style.borderRadius = '12px';
+  systemMessage.style.maxWidth = '80%';
+  systemMessage.style.alignSelf = 'center';
+  systemMessage.style.backgroundColor = '#f0f9ff';
+  systemMessage.style.color = this.config.theme.textLight;
+  systemMessage.style.fontSize = '13px';
+  systemMessage.style.margin = '8px 0';
+  systemMessage.textContent = text;
+  
+  this.messagesContainer.appendChild(systemMessage);
+  this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+  
+  // Automatically remove system message after 5 seconds
+  setTimeout(() => {
+    if (this.messagesContainer.contains(systemMessage)) {
       systemMessage.style.opacity = '0';
       systemMessage.style.transition = 'opacity 0.5s ease';
       setTimeout(() => systemMessage.remove(), 500);
-    }, 5000);
-  }
+    }
+  }, 5000);
+}
 
-  addMessage(text, isUser = true) {
-    const message = document.createElement('div');
-    message.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
-    message.style.padding = '12px';
-    message.style.borderRadius = '18px';
-    message.style.maxWidth = '80%';
-    message.style.wordBreak = 'break-word';
-    message.style.whiteSpace = 'pre-wrap';
+async sendMessage() {
+  const message = this.textInput.value.trim();
+  if (!message || this.isProcessing) return;
+  
+  // Clear input
+  this.textInput.value = '';
+  
+  // Add user message to chat
+  this.addUserMessage(message);
+  
+  // Set processing state
+  this.isProcessing = true;
+  this.sendButton.disabled = true;
+  this.textInput.disabled = true;
+  
+  try {
+    // Add thinking indicator
+    const thinkingIndicator = this.addThinkingIndicator();
     
-    if (isUser) {
-      message.style.backgroundColor = this.config.theme.primary;
-      message.style.color = 'white';
-      message.style.alignSelf = 'flex-end';
-    } else {
-      message.style.backgroundColor = this.config.theme.secondary;
-      message.style.color = this.config.theme.text;
-      message.style.alignSelf = 'flex-start';
-    }
+    // Send message to API
+    const response = await this.callAPI(message);
     
-    // Handle markdown-like code blocks
-    if (text.includes('```')) {
-      const parts = text.split('```');
-      let formattedText = '';
-      
-      for (let i = 0; i < parts.length; i++) {
-        if (i % 2 === 0) {
-          // Regular text
-          formattedText += parts[i];
-        } else {
-          // Code block
-          const codeBlock = document.createElement('pre');
-          codeBlock.style.backgroundColor = '#272822';
-          codeBlock.style.color = '#f8f8f2';
-          codeBlock.style.padding = '10px';
-          codeBlock.style.borderRadius = '4px';
-          codeBlock.style.overflowX = 'auto';
-          codeBlock.style.fontSize = '14px';
-          codeBlock.style.margin = '8px 0';
-          
-          // Check if there's a language specified
-          const codeLines = parts[i].trim().split('\n');
-          if (codeLines.length > 0 && !codeLines[0].includes(' ')) {
-            const language = codeLines[0];
-            codeBlock.innerHTML = codeLines.slice(1).join('\n');
-            codeBlock.classList.add(`language-${language}`);
-          } else {
-            codeBlock.innerHTML = parts[i];
-          }
-          
-          message.appendChild(codeBlock);
-        }
-      }
-      
-      if (formattedText) {
-        const textNode = document.createTextNode(formattedText);
-        message.insertBefore(textNode, message.firstChild);
-      }
-    } else {
-      message.textContent = text;
-    }
+    // Remove thinking indicator
+    thinkingIndicator.remove();
     
-    this.messagesContainer.appendChild(message);
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    
-    // Add to chat history
-    this.chatHistory.push({
-      role: isUser ? 'user' : 'assistant',
-      content: text
-    });
+    // Add AI response to chat
+    this.addAIMessage(response);
+  } catch (error) {
+    console.error('Error sending message:', error);
+    this.addSystemMessage('Error: Could not connect to AI service.');
+  } finally {
+    // Reset processing state
+    this.isProcessing = false;
+    this.sendButton.disabled = false;
+    this.textInput.disabled = false;
+    this.textInput.focus();
   }
+}
 
-  async sendMessage() {
-    const userInput = this.textInput.value.trim();
-    if (userInput === '' || this.isProcessing) return;
+addUserMessage(text) {
+  const messageContainer = document.createElement('div');
+  messageContainer.className = 'message user-message';
+  messageContainer.style.padding = '12px';
+  messageContainer.style.borderRadius = '18px';
+  messageContainer.style.maxWidth = '80%';
+  messageContainer.style.alignSelf = 'flex-end';
+  messageContainer.style.backgroundColor = this.config.theme.primary;
+  messageContainer.style.color = 'white';
+  messageContainer.textContent = text;
+  
+  this.messagesContainer.appendChild(messageContainer);
+  this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+  
+  // Add to chat history
+  this.chatHistory.push({
+    role: 'user',
+    content: text
+  });
+}
+
+addAIMessage(text) {
+  const messageContainer = document.createElement('div');
+  messageContainer.className = 'message assistant-message';
+  messageContainer.style.padding = '12px';
+  messageContainer.style.borderRadius = '18px';
+  messageContainer.style.maxWidth = '80%';
+  messageContainer.style.alignSelf = 'flex-start';
+  messageContainer.style.backgroundColor = this.config.theme.secondary;
+  messageContainer.style.color = this.config.theme.text;
+  
+  // Support markdown-like formatting for code blocks
+  const formattedText = text.replace(/```([\s\S]*?)```/g, (match, code) => {
+    return `<pre style="background-color: #f5f5f5; padding: 8px; border-radius: 6px; font-family: monospace; overflow-x: auto;">${code}</pre>`;
+  });
+  
+  messageContainer.innerHTML = formattedText;
+  
+  this.messagesContainer.appendChild(messageContainer);
+  this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+  
+  // Add to chat history
+  this.chatHistory.push({
+    role: 'assistant',
+    content: text
+  });
+}
+
+addThinkingIndicator() {
+  const indicator = document.createElement('div');
+  indicator.className = 'thinking-indicator';
+  indicator.style.padding = '12px';
+  indicator.style.borderRadius = '18px';
+  indicator.style.maxWidth = '80%';
+  indicator.style.alignSelf = 'flex-start';
+  indicator.style.backgroundColor = this.config.theme.secondary;
+  indicator.style.color = this.config.theme.textLight;
+  indicator.style.display = 'flex';
+  indicator.style.gap = '4px';
+  
+  // Create animated dots
+  for (let i = 0; i < 3; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'thinking-dot';
+    dot.style.width = '8px';
+    dot.style.height = '8px';
+    dot.style.borderRadius = '50%';
+    dot.style.backgroundColor = this.config.theme.textLight;
+    dot.style.opacity = '0.7';
+    dot.style.animation = `thinking-dot-animation 1.4s infinite ${i * 0.2}s`;
     
-    // Clear input
-    this.textInput.value = '';
-    
-    // Add user message to chat
-    this.addMessage(userInput, true);
-    
-    // Show typing indicator
-    this.addTypingIndicator();
-    
-    // Set processing flag
-    this.isProcessing = true;
-    
-    try {
-      // Prepare conversation history
-      const messages = [
-        { role: 'system', content: this.config.systemPrompt }
-      ];
-      
-      // Add conversation history (limited to last 10 messages for performance)
-      const recentHistory = this.chatHistory.slice(-10);
-      messages.push(...recentHistory);
-      
-      // Call API
-      const response = await this.callAPI(messages);
-      
-      // Remove typing indicator
-      this.removeTypingIndicator();
-      
-      // Add assistant response
-      this.addMessage(response, false);
-    } catch (error) {
-      console.error('Error calling API:', error);
-      
-      // Remove typing indicator
-      this.removeTypingIndicator();
-      
-      // Add error message
-      this.addSystemMessage('Error: Could not connect to AI service.');
-    } finally {
-      // Reset processing flag
-      this.isProcessing = false;
-    }
+    indicator.appendChild(dot);
   }
-
-  addTypingIndicator() {
-    this.typingIndicator = document.createElement('div');
-    this.typingIndicator.className = 'typing-indicator';
-    this.typingIndicator.style.padding = '12px';
-    this.typingIndicator.style.borderRadius = '18px';
-    this.typingIndicator.style.maxWidth = '60px';
-    this.typingIndicator.style.backgroundColor = this.config.theme.secondary;
-    this.typingIndicator.style.alignSelf = 'flex-start';
-    this.typingIndicator.style.display = 'flex';
-    this.typingIndicator.style.gap = '4px';
-    this.typingIndicator.style.justifyContent = 'center';
-    
-    // Create the three dots
-    for (let i = 0; i < 3; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'dot';
-      dot.style.width = '8px';
-      dot.style.height = '8px';
-      dot.style.backgroundColor = this.config.theme.textLight;
-      dot.style.borderRadius = '50%';
-      dot.style.animation = 'typing-animation 1s infinite';
-      dot.style.animationDelay = `${i * 0.2}s`;
-      this.typingIndicator.appendChild(dot);
+  
+  // Create animation keyframes
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes thinking-dot-animation {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
     }
-    
-    // Add animation keyframes
-    if (!document.getElementById('typing-animation-style')) {
-      const style = document.createElement('style');
-      style.id = 'typing-animation-style';
-      style.textContent = `
-        @keyframes typing-animation {
-          0%, 100% { opacity: 0.4; transform: translateY(0); }
-          50% { opacity: 1; transform: translateY(-4px); }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    this.messagesContainer.appendChild(this.typingIndicator);
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-  }
+  `;
+  document.head.appendChild(style);
+  
+  this.messagesContainer.appendChild(indicator);
+  this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+  
+  return indicator;
+}
 
-  removeTypingIndicator() {
-    if (this.typingIndicator) {
-      this.typingIndicator.remove();
-      this.typingIndicator = null;
-    }
-  }
-
-  async callAPI(messages) {
-    // For Ollama, we use the /api/generate endpoint
+async callAPI(message) {
+  try {
     const response = await fetch(this.config.apiEndpoint, {
       method: 'POST',
       headers: {
@@ -622,80 +586,43 @@ class FloatingAIBubble {
       },
       body: JSON.stringify({
         model: this.config.modelName,
-        prompt: this.formatMessagesForOllama(messages),
-        stream: false
+        messages: [
+          { role: 'system', content: this.config.systemPrompt },
+          ...this.chatHistory,
+          { role: 'user', content: message }
+        ]
       })
     });
     
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw new Error(`API responded with status: ${response.status}`);
     }
     
     const data = await response.json();
-    return data.response || 'No response from AI service.';
-  }
-
-  formatMessagesForOllama(messages) {
-    // Ollama uses a simpler format with a single string prompt
-    // We'll convert our messages array into a format Ollama understands
-    let formattedPrompt = '';
-    
-    messages.forEach(message => {
-      switch (message.role) {
-        case 'system':
-          formattedPrompt += `SYSTEM: ${message.content}\n\n`;
-          break;
-        case 'user':
-          formattedPrompt += `USER: ${message.content}\n\n`;
-          break;
-        case 'assistant':
-          formattedPrompt += `ASSISTANT: ${message.content}\n\n`;
-          break;
-      }
-    });
-    
-    // Add final prompt for the assistant to respond to
-    formattedPrompt += 'ASSISTANT:';
-    
-    return formattedPrompt;
+    return data.choices?.[0]?.message?.content || 'Sorry, I couldn\'t generate a response.';
+  } catch (error) {
+    console.error('API call failed:', error);
+    throw error;
   }
 }
 
-// Create a global CSS for the bubble chat
-const globalStyle = document.createElement('style');
-globalStyle.textContent = `
-  #floating-ai-bubble * {
-    box-sizing: border-box;
+// Helper method to clear chat history
+clearChatHistory() {
+  this.chatHistory = [];
+  while (this.messagesContainer.firstChild) {
+    this.messagesContainer.removeChild(this.messagesContainer.firstChild);
   }
   
-  .floating-bubble:hover {
-    transform: scale(1.05);
-  }
-`;
-document.head.appendChild(globalStyle);
-
-// Initialize the chatbot when the script loads
-document.addEventListener('DOMContentLoaded', () => {
-  // You can customize the configuration here
-  const chatbot = new FloatingAIBubble({
-    bubbleSize: 60,
-    apiEndpoint: "http://localhost:11434/api/generate",
-    modelName: "llama3",
-    systemPrompt: "You are a helpful AI assistant.",
-    theme: {
-      primary: "#2563eb",
-      secondary: "#f3f4f6",
-      text: "#1f2937",
-      textLight: "#6b7280",
-      background: "#ffffff",
-    }
-  });
-  
-  // Expose chatbot to global scope for advanced usage
-  window.aiChatbot = chatbot;
-});
-
-// Export the class for module usage
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-  module.exports = FloatingAIBubble;
+  // Add welcome message again
+  const welcomeMessage = document.createElement('div');
+  welcomeMessage.className = 'message assistant-message';
+  welcomeMessage.style.padding = '12px';
+  welcomeMessage.style.borderRadius = '18px';
+  welcomeMessage.style.maxWidth = '80%';
+  welcomeMessage.style.alignSelf = 'flex-start';
+  welcomeMessage.style.backgroundColor = this.config.theme.secondary;
+  welcomeMessage.style.color = this.config.theme.text;
+  welcomeMessage.textContent = `Hello! How can I help you today?`;
+  this.messagesContainer.appendChild(welcomeMessage);
+}
 }

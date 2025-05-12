@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
-const fetch = require("node-fetch");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
 const { spawn } = require("child_process");
@@ -214,36 +213,6 @@ app.get("/api/room/load/:roomId", async (req, res) => {
     res.status(500).json({ error: "Failed to load room state" });
   }
 });
-// Proxy route for chatbot
-app.post("/api/chat", async (req, res) => {
-  const { messages, model = "gpt-3.5-turbo", temperature = 0.7 } = req.body;
-
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).json({ error: "Missing OpenAI API key in server." });
-  }
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-      }),
-    });
-
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch (err) {
-    console.error("Error calling OpenAI:", err);
-    res.status(500).json({ error: "Failed to fetch from OpenAI" });
-  }
-});
-
 // === Health Check ===
 app.get("/health", (req, res) => {
   res.status(200).json({
